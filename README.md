@@ -289,3 +289,53 @@ Les branches, le set up de JDK21 parce que je n'ai pas java17 sur mon pc.
 Et le mvn clean verify à la fin.  
 
 <h3>First steps into the CD World</h3>
+
+Dans Github, j'ai rajouter des *Secrets* pour renseigner mes DockerHub username et token.  
+
+Puis, j'ai fais un deuxième job qui permet de se connecter à Docker Hub avec l'username et le token dans mes secrets.  
+
+```
+  build-and-push-docker-image:
+    needs: test-backend
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2.5.0
+
+      - name: Login to DockerHub 
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+```
+
+Pour push, j'ai donc fais comme l'exemple pour les 3 images :  
+```
+      - name: Build image and push backend
+        uses: docker/build-push-action@v3
+        with:
+          context: ./simpleapi
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build image and push database
+        uses: docker/build-push-action@v3
+        with:
+          context: ./database
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-database:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build image and push httpd
+        uses: docker/build-push-action@v3
+        with:
+          context: ./httpd
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-httpd:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+```
+A la fin, j'ai bien mes images sur mon Docker Hub :
+![texte](images/tp2_publish.png) 
+
+mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api/pom.xml
+
+mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=github-docker_tcaraux
