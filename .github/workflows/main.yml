@@ -21,10 +21,38 @@ jobs:
           distribution: 'temurin' 
           java-version: 21
 
-      # List files to verify the structure
-      - name: List files in repository
-        run: ls -R
-
      #finally build your app with the latest command
       - name: Build and test with Maven
         run: mvn clean verify --file simpleapi/pom.xml
+
+  build-and-push-docker-image:
+    needs: test-backend
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2.5.0
+
+      - name: Login to DockerHub
+        run: docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build image and push backend
+        uses: docker/build-push-action@v3
+        with:
+          context: ./simpleapi
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build image and push database
+        uses: docker/build-push-action@v3
+        with:
+          context: ./database
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-database:latest
+          push: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build image and push httpd
+        uses: docker/build-push-action@v3
+        with:
+          context: ./httpd
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-httpd:latest
+          push: ${{ github.ref == 'refs/heads/main' }}

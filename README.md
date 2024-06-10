@@ -218,6 +218,7 @@ Ainsi, j'obtiens sur Docker Hub :
 
 <h1>Discover Github Action</h1>
 <h3>Setup GitHub Actions</h3>
+
 <h3>Build and test your Application</h3>
 
 J'ai rajouté les dépenses dans le pom.xl :
@@ -253,3 +254,38 @@ Results:
 Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ``
+
+J'ai donc mis dans main.yml : 
+```
+name: CI devops 2024
+on:
+  #to begin you want to launch this job in main and develop
+  push:
+    branches: 
+      - main 
+      - develop
+  pull_request:
+
+jobs:
+  test-backend: 
+    runs-on: ubuntu-22.04
+    steps:
+     #checkout your github code using actions/checkout@v2.5.0
+      - uses: actions/checkout@v2.5.0
+
+     #do the same with another action (actions/setup-java@v3) that enable to setup jdk 17
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin' 
+          java-version: 21
+
+     #finally build your app with the latest command
+      - name: Build and test with Maven
+        run: mvn clean verify --file simpleapi/pom.xml
+```
+
+Les branches, le set up de JDK21 parce que je n'ai pas java17 sur mon pc.  
+Et le mvn clean verify à la fin.  
+
+<h3>First steps into the CD World</h3>
