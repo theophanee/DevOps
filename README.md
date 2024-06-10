@@ -216,4 +216,40 @@ Login Succeeded
 Ainsi, j'obtiens sur Docker Hub :  
 ![Texte alternatif](images/publish.png)  
 
+<h1>Discover Github Action</h1>
+<h3>Setup GitHub Actions</h3>
+<h3>Build and test your Application</h3>
 
+J'ai rajouté les dépenses dans le pom.xl :
+``
+<dependencies>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers</artifactId>
+        <version>${testcontainers.version}</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>jdbc</artifactId>
+        <version>${testcontainers.version}</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>${testcontainers.version}</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+``
+
+Je me place dans simpleapi et je lance `mvn clean verify`.  
+``
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+Results:
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+``
