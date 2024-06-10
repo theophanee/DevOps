@@ -11,7 +11,7 @@ services:
 
   backend:
     build:
-      context: ./simple-api-student
+      context: ./simpleapi
     networks:
       - my-network
     depends_on:
