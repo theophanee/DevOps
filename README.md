@@ -338,4 +338,3 @@ A la fin, j'ai bien mes images sur mon Docker Hub :
 
 mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api/pom.xml
 
-mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=github-docker_tcaraux
