@@ -24,6 +24,7 @@ jobs:
      #finally build your app with the latest command
       - name: Build and test with Maven
         run: mvn clean verify --file simpleapi/pom.xml
+
   build-and-push-docker-image:
     needs: test-backend
     runs-on: ubuntu-22.04
