@@ -1,11 +1,18 @@
 <h1>Database</h1>
 <h3>Basics</h3>
 
-``docker build -t my-postgres-image . `` pour build l'image avec comme nom my-postgres-image  
-``docker run -d --name my-postgres-container --network app-network -p 5432:5432 -e POSTGRES_DB=db -e POSTGRES_USER=usr -e POSTGRES_PASSWORD=pwd my-postgres-image`` pour démarrer le conteneur de l'image    
+(Les résultats de ces questions sont dans ``/database``)  
 
-Je vérifie que le conteneur est en cours d'exécution avec ``docker ps`` : 
-``CONTAINER ID   IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES 48f014228c50   my-postgres-image   "docker-entrypoint.s…"   About a minute ago   Up About a minute   0.0.0.0:5432->5432/tcp   my-postgres-container ``.  
+</br>
+
+``docker build -t my-postgres-image .`` pour build l'image avec pour nom *my-postgres-image*.  
+``docker run -d --name my-postgres-container --network app-network -p 5432:5432 -e POSTGRES_DB=db -e POSTGRES_USER=usr -e POSTGRES_PASSWORD=pwd my-postgres-image`` pour démarrer le conteneur de l'image avec l'option -e pour rentrer les valeurs de POSTGRES.  
+
+Je vérifie que le conteneur est en cours d'exécution avec ``docker ps`` :  
+``CONTAINER ID   IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES ``  
+``48f014228c50   my-postgres-image   "docker-entrypoint.s…"   About a minute ago   Up About a minute   0.0.0.0:5432->5432/tcp   my-postgres-container ``.  
+
+Je retrouve donc bien mon container *my-postgres-container*.  
 
 J'ai ensuite run l'admirer avec ``docker run -d --name adminer-container --network app-network -p 8080:8080 adminer``.  
 Puis sur ma page localhost, la page SQL s'affiche, et je renseigne les données :
@@ -13,11 +20,14 @@ Puis sur ma page localhost, la page SQL s'affiche, et je renseigne les données 
 - Serveur : my-postgres-container
 - Utilisateur : usr
 - Mot de passe : pwd
-- Base de données : db
+- Base de données : db  
+
 Et j'ai donc pu accéder à ma base de donnée.  
 
 <h3>Init database</h3>
-J'ai mis les 2 scripts SQL dans le répertoire `/sql-inits/` et j'ai rajouté dans le Dockerfile cette ligne ``COPY sql-scripts/*.sql /docker-entrypoint-initdb.d/``.  
+
+On cherche à initialiser notre BDD avec l'image docker, on va utiliser des scripts pour ça.   
+J'ai mis les 2 scripts SQL dans le répertoire `/sql-inits/` et j'ai rajouté dans le Dockerfile cette ligne ``COPY sql-scripts/*.sql /docker-entrypoint-initdb.d/`` qui permet de préciser les fichiers à utiliser pour initialiser notre BDD dans l'image.  
 
 Je peux ensuite faire ``ls /docker-entrypoint-initdb.d/`` pour vérifier que les scripts sont bien chargés.  
 
@@ -57,14 +67,12 @@ Je supprime l'ancien adminer :
 - ``docker stop my-postgres-container adminer-container`` 
 - ``docker rm my-postgres-container adminer-container``
 
-Puis je démarre un nouveau contener et son adminer : 
+Puis je démarre un nouveau container et son adminer : 
 - ``docker run -d --name my-postgres-container --network app-network -p 5432:5432 -v postgres-data:/var/lib/postgresql/data -e POSTGRES_DB=db -e POSTGRES_USER=usr -e POSTGRES_PASSWORD=pwd my-postgres-image``
 - ``docker run -d --name adminer-container --network app-network -p 8090:8080 adminer``
-J'utilise bien `-v /my/own/datadir:/var/lib/postgresql/data`.
+J'utilise bien `-v postgres-data:/var/lib/postgresql/data`.
 
-Sur ma page localhost, j'ai bien mes tables toujours présentes. 
-
-Quand je recréer mon container j'ai toujours mes données.
+Sur ma page localhost, j'ai bien mes tables toujours présentes. Quand je recréer mon container j'ai toujours mes données.
 
 <h1>Backend API</h1>
 <h3>Basics</h3>
@@ -83,50 +91,98 @@ WORKDIR /app
 CMD ["java", "Main"]
 ```
 
-Puis je build `docker build -t java-hello-world .` et j'exécute avec `docker run --rm java-hello-world`.  
-J'ai bien sur ma console 
-``docker run --rm java-hello-world
-Hello World!```  
+Puis je build `docker build -t java-hello-world .` et j'exécute avec `docker run --rm java-hello-world`.   
+J'ai bien sur ma console : ``docker run --rm java-hello-world Hello World!``.  Donc notre ``Main.java`` se lance bien avec notre image.  
 
 <h3>Multistage build</h3>
 <h4>Backend simple api</h4>
 
+(Les résultats de ces questions sont dans ``/simpleapi``)
+
 J'ai installer Spring Boot avec java21 car je n'avais pas le 17.  
-J'ai donc dû modifier le Dockerfile avec :
-`FROM maven:3.9.7-eclipse-temurin-21-alpine AS myapp-build` et `FROM openjdk:21-jdk-slim AS myapp-runtime`.  
+J'ai donc dû modifier le Dockerfile avec : `FROM maven:3.9.7-eclipse-temurin-21-alpine AS myapp-build` et `FROM openjdk:21-jdk-slim AS myapp-runtime`, trouvé sur Docker Hub.  
+
+La construction en plusieurs étapes sert à optimiser la taille de l'image finale et augmente la sécurité car elle limite l'affichage de dépendances et fichiers inutiles dans l'image finale. Ainsi, seuls les choses utiles pour l'image finale sont visibles et réduit donc le champ d'attaques potentielles.  
+
+```Dockerfile
+# Build
+# Définit l'image de base
+FROM maven:3.9.7-eclipse-temurin-21-alpine AS myapp-build
+# Variable d'environnement qui pointe vers le réprtoire de l'app
+ENV MYAPP_HOME /opt/myapp
+# Définit le répertoire de l'app pour exécuter les commandes
+WORKDIR $MYAPP_HOME
+# Copie les répertoires du build local vers le répertoire de l'image
+COPY pom.xml .
+COPY src ./src
+# Exécute la cmd Maven avec l'option pour ignorer les tests unitaires
+RUN mvn package -DskipTests
+
+# Run
+# Définit l'image pour l'exécution
+FROM openjdk:21-jdk-slim AS myapp-runtime
+ENV MYAPP_HOME /opt/myapp
+WORKDIR $MYAPP_HOME
+# Copie le JAR du build précédent vers le répertoire d'exécution
+COPY --from=myapp-build $MYAPP_HOME/target/*.jar $MYAPP_HOME/myapp.jar
+
+# Exécute l'application avec myapp.jar
+ENTRYPOINT java -jar myapp.jar
+```
+
 J'ai ensuite placer le Dockerfile au même niveau que le pom.xml pour lancer le build `docker build -t my-springboot-app .` et j'ai lancé avec `docker run -p 8080:8080 my-springboot-app`.  
 
 <h4>Backend API</h4>
 
-J'ai donc ajusté les valeurs de application.yml comme ceci :
-```    
-url: jdbc:postgresql://localhost:5432/db
-username: usr
-password: pwd
-driver-class-name: org.postgresql.Driver
-```
+(Résultats de ces questions dans ``/simple-api-student``)
 
-Pour correspondre à nos valeurs données à la database.  
+Pour correspondre à nos valeurs données à la database, j'ai donc ajusté les valeurs de application.yml comme ceci :
+```yml
+spring:
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+    generate-ddl: false
+    open-in-view: true
+  datasource:
+    url: jdbc:postgresql://my-postgres-container:5432/db
+    username: usr
+    password: pwd
+    driver-class-name: org.postgresql.Driver
+management:
+ server:
+   add-application-context-header: false
+ endpoints:
+   web:
+     exposure:
+       include: health,info,env,metrics,beans,configprops
 
-docker build . -t simple-api
+```  
+
+``docker build . -t simple-api``  
 après création du network postgresql :
-docker run --name my-springboot-container --network my-network -p 8080:8080 simple-api
-
-et j'ai bien 
-``
-0	
-id	1
-firstname	"Eli"
+``docker run --name my-springboot-container --network my-network -p 8080:8080 simple-api`` et j'ai bien dans ma console :  
+````0	  
+id	1  
+firstname	"Eli"  
 lastname	"Copter"
 department	
 id	1
 name	"IRC"
-``
+````
+
 
 <h1>Http server</h1>
-<h3>Choose an appropriate base image.</h3>
 
-``
+<h3>Choose an appropriate base image.</h3>
+<h3>Configuration</h3>
+
+Je télécharge le *httpd.conf* de Docker Desktop et je le place dans mon dossier httpd.
+
+```
 # Utiliser l'image de base Apache
 FROM httpd:2.4
 
@@ -135,32 +191,28 @@ COPY httpd.conf /usr/local/apache2/conf/httpd.conf
 
 # Copier la page index.html dans le répertoire de contenu web
 COPY index.html /usr/local/apache2/htdocs/
-``
+```
 
 Je build mon docker avec `docker build -t my-http-server .` puis je run `docker run -d -p 8080:80 --name my-http-container my-http-server`. 
-Puis j'ai tester stats, logs et inspect :
-- stats : pas grand chose, voir rien du tout
-- logs `AH00534: httpd: Configuration error: No MPM loaded.`
-- inspect : me donne pleins d'informations comme Id, Path, State etc
-
-<h3>Configuration</h3>
-
-Je télécharge le *httpd.conf* de Docker Desktop et je le place dans mon dossier httpd.
 
 <h3>Reverse proxy</h3>
-``
-<VirtualHost *:80>
+
+Je copie-colle ce code :
+````<VirtualHost *:80>
 ProxyPreserveHost On
 ProxyPass / http://backend:8080/
 ProxyPassReverse / http://backend:8080/
 </VirtualHost>
 LoadModule proxy_module modules/mod_proxy.so
 LoadModule proxy_http_module modules/mod_proxy_http.so
-``
+````
+à la fin de *httpd.conf*. Le proxy améliore la répartition de la charge, la sécurité, le chache et la performance de l'application.  
+
 <h3>Link application</h3>
 
-Je renseigne toutes les informations comme databse, backend et httpd.
-``
+Je renseigne toutes les informations comme databse, backend et httpd de la même façon que je le faisait dans les réponses précédentes tout en attachant le réseau.
+
+````yml
 services:
   database:
     build:
@@ -196,9 +248,10 @@ services:
 
 networks:
   my-network:
-``
+````
 
 Puis je lance mon `docker compose up --build` qui va donc lancer tout mes DockerFile et je peux enfin voir mon application sur *http://localhost:8080/*.  
+Docker Compose simplifie la gestion du multi-container car il configure, démarre et arrête tous les services de l'application avec un seul fichier et une seule commande.  
 
 <h3>Publish</h3>
 
@@ -206,12 +259,15 @@ J'enchaîne les commandes suivantes :
 > \> docker login  
 Authenticating with existing credentials...  
 Login Succeeded  
-> \> docker tag tp-httpd tcaraux/my-database:1.0   
+> \> docker tag my-database tcaraux/my-database:1.0   
 > \> docker push tcaraux/my-database:1.0  
-> \> docker tag tp-httpd tcaraux/httpd:2.4   
+> \> docker tag my-httpd tcaraux/httpd:2.4   
 > \> docker push tcaraux/httpd:2.4  
-> \> docker tag tp-httpd tcaraux/backend:lastest
+> \> docker tag my-backend tcaraux/backend:lastest
 > \> docker push tcaraux/backend:lastest  
+
+Pour ``docker tag my-httpd tcaraux/httpd:2.4`` je crée une étiquette pour l'image ``my-httpd`` et je la nomme ``tcaraux/my-httpd`` avec la version 2.4. Cela sert à identifier et versionner mon image pour ensuite la pousser vers Docker Hub.  
+Ainsi, avec ``docker push tcaraux/httpd:2.4  `` je pousse l'image my-httpd sur Docker Hub pour que d'autres développeurs puissent l'utiliser.  
 
 Ainsi, j'obtiens sur Docker Hub :  
 ![Texte alternatif](images/publish.png)  
@@ -221,8 +277,11 @@ Ainsi, j'obtiens sur Docker Hub :
 
 <h3>Build and test your Application</h3>
 
-J'ai rajouté les dépenses dans le pom.xl :
-``
+Les conteneurs de test permettent d'exécuter et de valider des logiciels, ce qui facilite la détection d'erreur.  
+
+J'ai rajouté les dépendances dans le pom.xl :
+
+````xml
 <dependencies>
     <dependency>
         <groupId>org.testcontainers</groupId>
@@ -243,20 +302,20 @@ J'ai rajouté les dépenses dans le pom.xl :
         <scope>test</scope>
     </dependency>
 </dependencies>
-``
+````
 
-Je me place dans simpleapi et je lance `mvn clean verify`.  
-``
+Je me place dans ``/simpleapi`` et je lance `mvn clean verify`.  
+````
 [INFO] -------------------------------------------------------
 [INFO]  T E S T S
 [INFO] -------------------------------------------------------
 Results:
 Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
-``
+````
 
 J'ai donc mis dans main.yml : 
-```
+```yml
 name: CI devops 2024
 on:
   #to begin you want to launch this job in main and develop
@@ -284,9 +343,9 @@ jobs:
       - name: Build and test with Maven
         run: mvn clean verify --file simpleapi/pom.xml
 ```
-
-Les branches, le set up de JDK21 parce que je n'ai pas java17 sur mon pc.  
-Et le mvn clean verify à la fin.  
+Les branhes permettent de préciser sur quelles branches le workflow doit se lancé.  
+J'ai mis JDK21 parce que je n'ai pas java17 sur mon pc. Je précise la configuration Java avec `use`, je paramètre l'action avec `with` (distribution JDK, Version de Java).   
+Et le mvn clean verify à la fin pour nettoyer le projet et des.  
 
 <h3>First steps into the CD World</h3>
 

@@ -1,15 +1,11 @@
----
-# tasks file for roles/launch_app
-
-# roles/launch_app/tasks/main.yml
-
 - name: Run Application
   docker_container:
-    name: tp-backend
-    image: tp-backend:latest
-    env_file: /home/centos/app/.env
+    name: simple-api-student
+    image: tcaraux/simple-api-student:latest
+    env_file: /home/centos/application.yml
     networks:
       - name: my_network
     state: started
   vars:
     ansible_python_interpreter: /usr/bin/python3
+    
