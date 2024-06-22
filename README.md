@@ -338,3 +338,138 @@ A la fin, j'ai bien mes images sur mon Docker Hub :
 
 mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api/pom.xml
 
+<h1>Setup Quality Gate</h1>
+
+<h3>Register to SonarCloud</h3>
+
+Je me suis enregistré sur SonardCloud, j'ai récupérer les valeurs de SONAR_TOKEN que j'ai mis en secrets sur Github.  
+Et je lance donc ensuite dans main.yml :
+`mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simpleapi/pom.xml`  
+
+je dois avoir une erreur pour simpleapistudents   
+
+<h1>Ansible</h1>
+
+<h1>Introduction</h1>
+<h3>Inventories</h3>
+
+Sur Windows :  
+icacls .\inventories\id_rsa /inheritance:r   
+icacls .\inventories\id_rsa /remove:g "utilisateurs"  
+icacls .\inventories\id_rsa /grant:r %username%:R   
+ssh -i .\inventories\id_rsa centos@theophane.caraux.takima.cloud  
+
+Ensuite, il faut déplacer id_rsa dans mon environnement ubuntu avec ceci :  
+mkdir -p ~/.ssh   
+chmod 700 ~/.ssh  
+mv ./id_rsa ~/.ssh/  
+ls -l ~/.ssh/id_rsa  
+chmod 600 ~/.ssh/id_rsa  
+
+Puis, sur mon ubuntu :  
+```
+$ ansible all -m ping --private-key=/home/tcaraux/.ssh/id_rsa -u centos  
+theophane.caraux.takima.cloud | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+```
+<h3>Facts</h3>
+ansible all -i inventories/setup.yml -m setup -a "filter=ansible_distribution*"  
+ansible all -i inventories/setup.yml -m yum -a "name=httpd state=absent" --become  
+
+<h1>Playbooks</h1>
+
+<h3>First playbook</h3>
+
+```
+ansible-playbook -i inventories/setup.yml playbook.yml
+
+PLAY [all] *************************************************************************************************
+
+TASK [Test connection] *************************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+PLAY RECAP *************************************************************************************************
+theophane.caraux.takima.cloud : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+```
+
+<h3>Advanced Playbook</h3>
+
+Avant de reprendre le TP, comme le serveur a été reconstruit il faut supprimer l'entrée obsolète *known_hosts*. Avec cette commande : `ssh-keygen -f "/home/tcaraux/.ssh/known_hosts" -R "theophane.caraux.takima.cloud"`.  
+
+Pendant le TP de lundi, la tâche `Install device-mapper-persistent-data` me renvoyait une erreur incompréhensible. On me disait que l'url ne m'acceptait pas ou ne m'était pas accordé. Désormais, je n'ai rien changé mais `ansible-playbook -i inventories/setup.yml playbook.yml` fonctionne bien :  
+```
+PLAY [all] *****************************************************************************************************************
+
+TASK [Install device-mapper-persistent-data] *******************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [Install lvm2] ********************************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [add repo docker] *****************************************************************************************************
+[WARNING]: Consider using 'become', 'become_method', and 'become_user' rather than running sudo
+changed: [theophane.caraux.takima.cloud]
+
+TASK [Install Docker] ******************************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [Install python3] *****************************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [Install docker with Python 3] ****************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [Make sure Docker is running] *****************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+PLAY RECAP *****************************************************************************************************************
+theophane.caraux.takima.cloud : ok=7    changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0       
+```
+
+<h3>Using roles</h3>
+
+On veut donc organiser le playbook avec des rôles pour rendre la configuration plus propre et modulaire.  
+
+ansible-galaxy init roles/docker  
+- Role roles/docker was created successfully  
+
+On a donc maintenant un dossier roles/docker/. Dedans se trouve plusieurs dossiers mais le plus intéressant est celui de tasks/main.yml. On va donc mettre notre *Install Docker* dans tasks/main.yml pour être mieux organiser en rajoutant des notify pour pouvoir notifier le `handler` et simplement mettre dans ansible/playbook.yml pour appeler le rôle `docker` que je viens de créer. Le handler permet de gérer les notifications comme `restart docker` un service après une mise à jour.    
+
+```
+ansible-playbook -i inventories/setup.yml playbook.yml
+
+PLAY [all] *****************************************************************************************************************
+
+TASK [docker : Install device-mapper-persistent-data] **********************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+TASK [docker : Install lvm2] ***********************************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+TASK [docker : add repo docker] ********************************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+TASK [docker : Install Docker] *********************************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+TASK [docker : Install python3] ********************************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+TASK [docker : Install docker with Python 3] *******************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+TASK [docker : Make sure Docker is running] ********************************************************************************
+ok: [theophane.caraux.takima.cloud]
+
+RUNNING HANDLER [docker : restart docker] **********************************************************************************
+changed: [theophane.caraux.takima.cloud]
+
+PLAY RECAP *****************************************************************************************************************
+theophane.caraux.takima.cloud : ok=8    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0            
+```
+<h1>

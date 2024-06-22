@@ -1,0 +1,16 @@
+---
+# tasks file for roles/launch_proxy
+
+# roles/launch_proxy/tasks/main.yml
+
+- name: Run Proxy
+  docker_container:
+    name: my_proxy
+    image: nginx:latest
+    ports:
+      - "80:80"
+    networks:
+      - name: my_network
+    state: started
+  vars:
+    ansible_python_interpreter: /usr/bin/python3

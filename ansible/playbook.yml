@@ -1,0 +1,17 @@
+# playbook.yml
+
+---
+- hosts: all
+  become: true
+  tasks:
+    - import_role:
+        name: docker
+    - import_role:
+        name: create_network
+    - import_role:
+        name: launch_database
+    - import_role:
+        name: launch_app
+    - import_role:
+        name: launch_proxy
+

@@ -1,0 +1,16 @@
+---
+# tasks file for roles/launch_database
+
+- name: Run Database
+  docker_container:
+    name: my_database
+    image: postgres:latest
+    env_file: /home/centos/.env 
+    networks:
+      - name: my_network
+    state: started
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+
+
