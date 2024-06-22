@@ -372,7 +372,7 @@ Pour push, j'ai donc fais comme l'exemple pour les 3 images (backend, databse, h
       - name: Build image and push backend
         uses: docker/build-push-action@v3
         with:
-          context: ./simpleapi
+          context: ./simple-api-student
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
           push: ${{ github.ref == 'refs/heads/main' }}
 
@@ -393,35 +393,43 @@ Pour push, j'ai donc fais comme l'exemple pour les 3 images (backend, databse, h
 A la fin, j'ai bien mes images sur mon Docker Hub :
 ![texte](images/tp2_publish.png) 
 
-mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api/pom.xml
+Et mes tests sont corrects :
+![texte](images/tp2_main_yml.png) 
 
 <h1>Setup Quality Gate</h1>
 
 <h3>Register to SonarCloud</h3>
 
-Je me suis enregistré sur SonardCloud, j'ai récupérer les valeurs de SONAR_TOKEN que j'ai mis en secrets sur Github.  
+Je me suis enregistré sur SonardCloud, j'ai récupérer les valeurs de SONAR_TOKEN que j'ai mis en *Secrets* sur Github.  
 Et je lance donc ensuite dans main.yml :
-`mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simpleapi/pom.xml`  
+`mvn -B verify sonar:sonar -Dsonar.projectKey=github-docker_tcaraux -Dsonar.organization=github-docker -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api-student/pom.xml`  
 
-je dois avoir une erreur pour simpleapistudents   
+
+![texte](images/sonar.png) 
+
+J'ai une erreur lors de l'analyse mais c'est normal car nous n'avons pas respecté les bonnes normes de codages. 
 
 <h1>Ansible</h1>
 
 <h1>Introduction</h1>
 <h3>Inventories</h3>
 
-Sur Windows :  
+Pas mal de problèmes de droits sur Windows avec *id_rsa*, on a trouvé une solution :
+````
 icacls .\inventories\id_rsa /inheritance:r   
 icacls .\inventories\id_rsa /remove:g "utilisateurs"  
 icacls .\inventories\id_rsa /grant:r %username%:R   
 ssh -i .\inventories\id_rsa centos@theophane.caraux.takima.cloud  
+````
 
-Ensuite, il faut déplacer id_rsa dans mon environnement ubuntu avec ceci :  
+Ensuite, il faut déplacer *id_rsa* dans son environnement ubuntu et lui donner les droits appropriés :  
+````
 mkdir -p ~/.ssh   
 chmod 700 ~/.ssh  
 mv ./id_rsa ~/.ssh/  
 ls -l ~/.ssh/id_rsa  
-chmod 600 ~/.ssh/id_rsa  
+chmod 600 ~/.ssh/id_rsa 
+````
 
 Puis, sur mon ubuntu :  
 ```
@@ -435,8 +443,40 @@ theophane.caraux.takima.cloud | SUCCESS => {
 }
 ```
 <h3>Facts</h3>
-ansible all -i inventories/setup.yml -m setup -a "filter=ansible_distribution*"  
-ansible all -i inventories/setup.yml -m yum -a "name=httpd state=absent" --become  
+
+Ici, on collecte les informations sur l'hôte qui tourne sous CentOS version 7.9 Core, une distribution RedHat et utilise Python :
+```
+ansible all -i inventories/setup.yml -m setup -a "filter=ansible_distribution*"
+theophane.caraux.takima.cloud | SUCCESS => {
+    "ansible_facts": {
+        "ansible_distribution": "CentOS",
+        "ansible_distribution_file_parsed": true,
+        "ansible_distribution_file_path": "/etc/redhat-release",
+        "ansible_distribution_file_variety": "RedHat",
+        "ansible_distribution_major_version": "7",
+        "ansible_distribution_release": "Core",
+        "ansible_distribution_version": "7.9",
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false
+}
+```
+
+Ici, *Ansible* cherche a supprimer ``httpd`` avec state=absent. On voit bien que ``httpd is not installed``.
+```
+ansible all -i inventories/setup.yml -m yum -a "name=httpd state=absent" --become
+theophane.caraux.takima.cloud | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "msg": "",
+    "rc": 0,
+    "results": [
+        "httpd is not installed"
+    ]
+}
+```
 
 <h1>Playbooks</h1>
 
@@ -492,10 +532,12 @@ theophane.caraux.takima.cloud : ok=7    changed=7    unreachable=0    failed=0  
 
 On veut donc organiser le playbook avec des rôles pour rendre la configuration plus propre et modulaire.  
 
+```
 ansible-galaxy init roles/docker  
 - Role roles/docker was created successfully  
+```
 
-On a donc maintenant un dossier roles/docker/. Dedans se trouve plusieurs dossiers mais le plus intéressant est celui de tasks/main.yml. On va donc mettre notre *Install Docker* dans tasks/main.yml pour être mieux organiser en rajoutant des notify pour pouvoir notifier le `handler` et simplement mettre dans ansible/playbook.yml pour appeler le rôle `docker` que je viens de créer. Le handler permet de gérer les notifications comme `restart docker` un service après une mise à jour.    
+On a donc maintenant un dossier roles/docker/. Dedans se trouve plusieurs dossiers mais le plus intéressant est celui de tasks/main.yml. On va donc mettre notre *Install Docker* dans tasks/main.yml pour être mieux organiser en rajoutant des *notify* pour pouvoir notifier le `handler` et simplement appeler le rôle `docker` dans ansible/playbook.yml que je viens de créer. Le handler permet de gérer les notifications comme `restart docker` un service après une mise à jour.    
 
 ```
 ansible-playbook -i inventories/setup.yml playbook.yml
@@ -529,4 +571,193 @@ changed: [theophane.caraux.takima.cloud]
 PLAY RECAP *****************************************************************************************************************
 theophane.caraux.takima.cloud : ok=8    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0            
 ```
-<h1>
+<h1>Deploy your App</h1>
+
+Je vais donc créer des rôles pour :
+- install docker
+- create network
+- launch database
+- launch app
+- launch proxy
+
+Par exemple pour ``create_network`` :
+```yml
+- name: Create Docker network
+  docker_network:
+    name: my_network
+    driver: bridge
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+```
+
+Je précise ma version de python à ``ansible_python_interpreter``.  
+
+Pour ``launch_database``, j'ai créer mon ``.env`` avec mes données pour accéder à la BDD et j'ai mis ce ``.env`` dans mon environnement avec la commande ``scp ../database/.env centos@theophane.caraux.takima.cloud:/home/centos/``. J'ai donc :  
+```yml
+- name: Run Database
+  docker_container:
+    name: my_database
+    image: postgres:latest
+    env_file: /home/centos/.env 
+    networks:
+      - name: my_network
+    state: started
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+```
+Je lui donne son image et son env.  
+
+De même que pour la db, pour mon app j'ai :
+```yml
+- name: Run Application
+  docker_container:
+    name: simple-api-student
+    image: tcaraux/simple-api-student:latest
+    env_file: /home/centos/application.yml
+    networks:
+      - name: my_network
+    state: started
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+```
+
+Je lui donne son image et j'ai aussi placer dans mon environnement application.yml avec `scp ../simple-api-student/src/main/resources/application.yml centos@theophane.caraux.takima.cloud:/home/centos/`.
+
+Quand je lance ma commande j'ai toujours cette erreur 
+```
+TASK [launch_app : Run Application] ************************************************************************************************************************************************************************
+An exception occurred during task execution. To see the full traceback, use -vvv. The error was: spring:
+fatal: [theophane.caraux.takima.cloud]: FAILED! => {"changed": false, "msg": "An unexpected docker error occurred: Invalid line in environment file /home/centos/application.yml:\nspring:"}
+```
+
+L'option `-vvv` ne me donne pas plus d'information, j'ai essayé d'enlever le `---` au début du fichier ou de transformer mes valeurs en String avec des ``''`` (``username: usr`` devient ``username: 'usr'``).  
+
+Tous les autres rôles sont `ok`, il n'y a que celui-ci en `failed`.
+Dommage, je n'ai pas trouvé de solutions à ce problème, c'était la dernière étape.  
+
+Résultat avec `-vvv` :
+```
+The full traceback is:
+Traceback (most recent call last):
+  File "/tmp/ansible_docker_container_payload_a1gnb_fl/ansible_docker_container_payload.zip/ansible/modules/cloud/docker/docker_container.py", line 3360, in main
+  File "/tmp/ansible_docker_container_payload_a1gnb_fl/ansible_docker_container_payload.zip/ansible/modules/cloud/docker/docker_container.py", line 2559, in __init__
+  File "/tmp/ansible_docker_container_payload_a1gnb_fl/ansible_docker_container_payload.zip/ansible/modules/cloud/docker/docker_container.py", line 1297, in __init__
+  File "/tmp/ansible_docker_container_payload_a1gnb_fl/ansible_docker_container_payload.zip/ansible/modules/cloud/docker/docker_container.py", line 1788, in _get_environment
+  File "/usr/local/lib/python3.6/site-packages/docker/utils/utils.py", line 458, in parse_env_file
+    env_file, line))
+docker.errors.DockerException: Invalid line in environment file /home/centos/application.yml:
+spring:
+fatal: [theophane.caraux.takima.cloud]: FAILED! => {
+    "changed": false,
+    "invocation": {
+        "module_args": {
+            "api_version": "auto",
+            "auto_remove": false,
+            "blkio_weight": null,
+            "ca_cert": null,
+            "cap_drop": null,
+            "capabilities": null,
+            "cleanup": false,
+            "client_cert": null,
+            "client_key": null,
+            "command": null,
+            "comparisons": null,
+            "cpu_period": null,
+            "cpu_quota": null,
+            "cpu_shares": null,
+            "cpuset_cpus": null,
+            "cpuset_mems": null,
+            "debug": false,
+            "detach": true,
+            "device_read_bps": null,
+            "device_read_iops": null,
+            "device_write_bps": null,
+            "device_write_iops": null,
+            "devices": null,
+            "dns_opts": null,
+            "dns_search_domains": null,
+            "dns_servers": null,
+            "docker_host": "unix://var/run/docker.sock",
+            "domainname": null,
+            "entrypoint": null,
+            "env": null,
+            "env_file": "/home/centos/application.yml",
+            "etc_hosts": null,
+            "exposed_ports": null,
+            "force_kill": false,
+            "groups": null,
+            "healthcheck": null,
+            "hostname": null,
+            "ignore_image": false,
+            "image": "tcaraux/simple-api-student:latest",
+            "init": false,
+            "interactive": false,
+            "ipc_mode": null,
+            "keep_volumes": true,
+            "kernel_memory": null,
+            "kill_signal": null,
+            "labels": null,
+            "links": null,
+            "log_driver": null,
+            "log_options": null,
+            "mac_address": null,
+            "memory": "0",
+            "memory_reservation": null,
+            "memory_swap": null,
+            "memory_swappiness": null,
+            "mounts": null,
+            "name": "simple-api-student",
+            "network_mode": null,
+            "networks": [
+                {
+                    "aliases": null,
+                    "ipv4_address": null,
+                    "ipv6_address": null,
+                    "links": null,
+                    "name": "my_network"
+                }
+            ],
+            "networks_cli_compatible": null,
+            "oom_killer": null,
+            "oom_score_adj": null,
+            "output_logs": false,
+            "paused": false,
+            "pid_mode": null,
+            "pids_limit": null,
+            "privileged": false,
+            "published_ports": null,
+            "pull": false,
+            "purge_networks": false,
+            "read_only": false,
+            "recreate": false,
+            "restart": false,
+            "restart_policy": null,
+            "restart_retries": null,
+            "runtime": null,
+            "security_opts": null,
+            "shm_size": null,
+            "ssl_version": null,
+            "state": "started",
+            "stop_signal": null,
+            "stop_timeout": null,
+            "sysctls": null,
+            "timeout": 60,
+            "tls": false,
+            "tls_hostname": "localhost",
+            "tmpfs": null,
+            "trust_image_content": false,
+            "tty": false,
+            "ulimits": null,
+            "user": null,
+            "userns_mode": null,
+            "uts": null,
+            "validate_certs": false,
+            "volume_driver": null,
+            "volumes": null,
+            "volumes_from": null,
+            "working_dir": null
+        }
+    },
+    "msg": "An unexpected docker error occurred: Invalid line in environment file /home/centos/application.yml:\nspring:"
+}
+```
