@@ -349,11 +349,9 @@ Et le mvn clean verify à la fin pour nettoyer le projet et des.
 
 <h3>First steps into the CD World</h3>
 
-Dans Github, j'ai rajouter des *Secrets* pour renseigner mes DockerHub username et token.  
+Dans Github, j'ai rajouter des *Secrets* pour renseigner mes DockerHub username et token. Puis, j'ai fais un deuxième job qui permet de se connecter à Docker Hub avec l'username et le token dans mes secrets.  
 
-Puis, j'ai fais un deuxième job qui permet de se connecter à Docker Hub avec l'username et le token dans mes secrets.  
-
-```
+```yml
   build-and-push-docker-image:
     needs: test-backend
     runs-on: ubuntu-22.04
@@ -369,8 +367,8 @@ Puis, j'ai fais un deuxième job qui permet de se connecter à Docker Hub avec l
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
 
-Pour push, j'ai donc fais comme l'exemple pour les 3 images :  
-```
+Pour push, j'ai donc fais comme l'exemple pour les 3 images (backend, databse, httpd) :  
+```yml
       - name: Build image and push backend
         uses: docker/build-push-action@v3
         with:
